@@ -1,126 +1,122 @@
-import React, { Component } from "react";
-import ReactDOM from "react-dom";
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+/* eslint-disable */
+import React, { useRef, useState, useEffect, useMemo } from 'react'
+import ReactDOM from "react-dom"
+import * as THREE from "three"
+import { Canvas, useThree, useRender, useLoader, extend } from 'react-three-fiber'
+import { useTransition, a } from 'react-spring'
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader'
+import './styles.scss'
+import Particles from './Particles'
 
-const style = {
-    height: 250 // we can control scene size by setting container dimensions
-};
-
-class App extends Component {
-    componentDidMount() {
-        this.sceneSetup();
-        this.addCustomSceneObjects();
-        this.startAnimationLoop();
-        window.addEventListener("resize", this.handleWindowResize);
-    }
-
-    componentWillUnmount() {
-        window.removeEventListener("resize", this.handleWindowResize);
-        window.cancelAnimationFrame(this.requestID);
-        this.controls.dispose();
-    }
-
-    // Standard scene setup in Three.js. Check "Creating a scene" manual for more information
-    // https://threejs.org/docs/#manual/en/introduction/Creating-a-scene
-    sceneSetup = () => {
-        // get container dimensions and use them for scene sizing
-        const width = this.el.clientWidth;
-        const height = this.el.clientHeight;
-
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(
-            75, // fov = field of view
-            width / height, // aspect ratio
-            0.1, // near plane
-            1000 // far plane
-        );
-        this.camera.position.z = 5; // is used here to set some distance from a cube that is located at z = 0
-        // OrbitControls allow a camera to orbit around the object
-        // https://threejs.org/docs/#examples/controls/OrbitControls
-        this.controls = new OrbitControls(this.camera, this.el);
-        this.renderer = new THREE.WebGLRenderer();
-        this.renderer.setSize(width, height);
-        this.el.appendChild(this.renderer.domElement); // mount using React ref
-    };
-
-    // Here should come custom code.
-    // Code below is taken from Three.js BoxGeometry example
-    // https://threejs.org/docs/#api/en/geometries/BoxGeometry
-    addCustomSceneObjects = () => {
-        const geometry = new THREE.ConeGeometry(2, 4, 20);
-        const material = new THREE.MeshPhongMaterial({
-            color: 0x156289,
-            emissive: 0x072534,
-            side: THREE.DoubleSide,
-            flatShading: true
-        });
-        this.cube = new THREE.Mesh(geometry, material);
-        this.scene.add(this.cube);
-
-        const lights = [];
-        lights[0] = new THREE.PointLight(0xffffff, 1, 0);
-        lights[1] = new THREE.PointLight(0xffffff, 1, 0);
-        lights[2] = new THREE.PointLight(0xffffff, 1, 0);
-
-        lights[0].position.set(0, 200, 0);
-        lights[1].position.set(100, 200, 100);
-        lights[2].position.set(-100, -200, -100);
-
-        this.scene.add(lights[0]);
-        this.scene.add(lights[1]);
-        this.scene.add(lights[2]);
-    };
-
-    startAnimationLoop = () => {
-        this.cube.rotation.x += 0.01;
-        this.cube.rotation.y += 0.01;
-
-        this.renderer.render(this.scene, this.camera);
-
-        // The window.requestAnimationFrame() method tells the browser that you wish to perform
-        // an animation and requests that the browser call a specified function
-        // to update an animation before the next repaint
-        this.requestID = window.requestAnimationFrame(this.startAnimationLoop);
-    };
-
-    handleWindowResize = () => {
-        const width = this.el.clientWidth;
-        const height = this.el.clientHeight;
-
-        this.renderer.setSize(width, height);
-        this.camera.aspect = width / height;
-
-        // Note that after making changes to most of camera properties you have to call
-        // .updateProjectionMatrix for the changes to take effect.
-        this.camera.updateProjectionMatrix();
-    };
-
-    render() {
-        return <div style={style} ref={ref => (this.el = ref)} />;
-    }
+extend({ OrbitControls })
+const Controls = props => {
+    const { gl, camera } = useThree()
+    const ref = useRef()
+    useRender(() => ref.current.update())
+    return <orbitControls ref={ref} args={[camera, gl.domElement]} {...props} />
 }
 
-class Container extends React.Component {
-    state = { isMounted: true };
+function Stars() {
+    let group = useRef()
+    let theta = 0
+    useRender(() => {
+        // Some things maybe shouldn't be declarative, we're in the render-loop here with full access to the instance
+        const r = 5 * Math.sin(THREE.Math.degToRad((theta += 0.1)))
+        const s = Math.cos(THREE.Math.degToRad(theta * 2))
+        group.current.rotation.set(r, r, r)
+        group.current.scale.set(s, s, s)
+    })
+    const [geo, mat, vertices, coords] = useMemo(() => {
+        const geo = new THREE.SphereBufferGeometry(1, 10, 10)
+        const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('lightblue') })
+        const coords = new Array(2000).fill().map(i => [Math.random() * 800 - 400, Math.random() * 800 - 400, Math.random() * 800 - 400])
+        return [geo, mat, vertices, coords]
+    }, [])
+    return (
+        <group ref={group}>
+            {coords.map(([p1, p2, p3], i) => (
+                <mesh key={i} geometry={geo} material={mat} position={[p1, p2, p3]} />
+            ))}
+        </group>
+    )
+}
 
-    render() {
-        const { isMounted = true } = this.state;
-        return (
-            <>
-                <button
-                    onClick={() =>
-                        this.setState(state => ({ isMounted: !state.isMounted }))
-                    }
-                >
-                    {isMounted ? "Unmount" : "Mount"}
-                </button>
-                {isMounted && <App />}
-                {isMounted && <div>Scroll to zoom, drag to rotate</div>}
-            </>
-        );
-    }
+/*function Model({ url }) {
+    const model = useLoader(GLTFLoader, url, loader => {
+        const dracoLoader = new DRACOLoader()
+        dracoLoader.setDecoderPath('/draco-gltf/')
+        loader.setDRACOLoader(dracoLoader)
+    })
+    return (
+        <group rotation={[0, 0, 0]} position={[0, 0, 0]} scale={[7, 7, 7]}>
+            {model.map(({ geometry, material }) => {
+                const rocks = geometry.index.count < 80000
+                const Material = rocks ? 'meshLambertMaterial' : 'meshStandardMaterial'
+                return (
+                    <mesh
+                        key={geometry.uuid}
+                        geometry={geometry}
+                        castShadow={!rocks}
+                        receiveShadow={!rocks}>
+                        <Material attach="material" color="#575757"  map={material.map} roughness={1} />
+                    </mesh>
+                )
+            })}
+        </group>
+    )
+}*/
+
+function Model({ url }) {
+    const [gltf, set] = useState()
+    useMemo(() => new GLTFLoader().load(url, set), [url])
+    return gltf ? <primitive scale={[7, 7, 7]} object={gltf.scene} /> : null
+}
+
+
+export default function App() {
+    return (
+        <>
+            <div className="bg">
+                <Particles />
+            </div>
+            <h1>
+                RODRIGO ZEA
+            </h1>
+            <h2>
+                ロドリゴ・ゼア
+            </h2>
+
+            <Canvas camera={{ position: [0, 0, 15] }} shadowMap>
+                <ambientLight intensity={1.5} />
+                <pointLight intensity={2} position={[-10, -20, -10]} />
+                <spotLight
+                    castShadow
+                    intensity={1.25}
+                    angle={Math.PI / 8}
+                    position={[25, 20, 15]}
+                    shadow-mapSize-width={2048}
+                    shadow-mapSize-height={2048}
+                />
+                <fog attach="fog" args={['#cc7b32', 16, 20]} />
+                
+                <Model url="src/earth.gltf" />
+                <Controls
+                    autoRotate
+                    enablePan={false}
+                    enableZoom={false}
+                    enableDamping
+                    dampingFactor={0.5}
+                    rotateSpeed={1}
+                    maxPolarAngle={Math.PI / 2}
+                    minPolarAngle={Math.PI / 2}
+                />
+            </Canvas>
+            <div className="layer" />
+        </>
+    )
 }
 
 const rootElement = document.getElementById("root");
-ReactDOM.render(<Container />, rootElement);
+ReactDOM.render(<App />, rootElement);
